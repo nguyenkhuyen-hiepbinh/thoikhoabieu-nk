@@ -1054,17 +1054,6 @@ function renderOverview(){
     });
   }
 
-  const guideCard = el(`<div class="card">
-    <h2><span class="material-symbols-outlined">bolt</span> Hướng dẫn nhanh</h2>
-    <ol class="numlist">
-      <li><span class="n">1</span><div><b>Năm học / Học kỳ:</b> Chọn ở góc trên bên trái — mỗi lựa chọn có DS GV và TKB riêng biệt.</div></li>
-      <li><span class="n">2</span><div><b>DS Giáo viên:</b> Khai báo thông tin giáo viên, tổ chuyên môn và tên viết tắt khớp với TKB.</div></li>
-      <li><span class="n">3</span><div><b>Cập nhật TKB:</b> Tải file Excel để hệ thống tự động so sánh, tô màu thay đổi và xóa tiết sai quy định.</div></li>
-      <li><span class="n">4</span><div><b>Tra cứu:</b> Xem thời khóa biểu linh hoạt theo đơn vị Lớp hoặc từng Giáo viên cụ thể.</div></li>
-      <li><span class="n">5</span><div><b>Thống kê &amp; Báo cáo:</b> Kiểm tra tổng số tiết và tự động phát hiện các trường hợp trùng lịch dạy.</div></li>
-    </ol>
-  </div>`);
-
   const manageGrid = el(`<div class="grid-2"></div>`);
   wrap.appendChild(manageGrid);
   const manageSection = el(`<div></div>`);
@@ -1136,7 +1125,7 @@ function renderOverview(){
   const syncCard = el(`<div class="card teal">
     <h2><span class="material-symbols-outlined">sync</span> Đồng bộ Firebase</h2>
     <p class="hint">Cấu hình 1 lần. Sau đó mỗi khi cập nhật dữ liệu, bấm "Đẩy lên server"; người khác mở file (đã cấu hình
-    cùng địa chỉ) sẽ <b>tự động tải bản mới nhất</b> khi mở trang. Xem hướng dẫn tạo Firebase miễn phí ở cuối trang này.</p>
+    cùng địa chỉ) sẽ <b>tự động tải bản mới nhất</b> khi mở trang. Xem hướng dẫn tạo Firebase miễn phí trong mục "Hỗ trợ" ở sidebar.</p>
     <div class="row">
       <div style="flex:1;min-width:280px;"><label>Địa chỉ Firebase Realtime Database</label>
         <input type="text" id="inpSyncUrl" placeholder="https://ten-project-default-rtdb.firebaseio.com" style="width:100%;" value="${syncConfig.url||''}"></div>
@@ -1182,24 +1171,6 @@ function renderOverview(){
       ? `<span class="tag ok">Đã đẩy dữ liệu lên server lúc ${new Date(r.syncedAt).toLocaleString('vi-VN')}.</span>`
       : `<span style="color:#ffb4ab;">Không đẩy lên được: ${r.reason}</span>`;
   });
-
-  const firebaseGuideCard = el(`<div class="card">
-    <h2><span class="material-symbols-outlined">cloud</span> Hướng dẫn tạo Firebase miễn phí</h2>
-    <ol class="numlist">
-      <li><span class="n">1</span><div>Vào <b>console.firebase.google.com</b>, tạo project mới.</div></li>
-      <li><span class="n">2</span><div>Vào menu trái <b>Build → Realtime Database</b> → bấm "Create Database".</div></li>
-      <li><span class="n">3</span><div>Chọn <b>"Start in test mode"</b> (cho phép đọc/ghi tự do để sử dụng nhanh).</div></li>
-      <li><span class="n">4</span><div>Copy <b>địa chỉ URL</b> (dạng https://…) dán vào cấu hình phía trên.</div></li>
-      <li><span class="n">5</span><div>Bấm <b>"Đẩy dữ liệu lên server"</b> để bắt đầu quá trình đồng bộ lần đầu.</div></li>
-    </ol>
-    <p class="hint" style="margin-top:14px;color:#93000a;background:var(--error-container);border:none;border-radius:10px;padding:10px 12px;">
-    <span class="material-symbols-outlined" style="font-size:16px;vertical-align:-3px;">warning</span> <b>LƯU Ý BẢO MẬT:</b> "Test mode" cho phép bất kỳ ai có địa chỉ này đọc/ghi dữ liệu. Chỉ dùng cho dữ liệu không nhạy cảm.
-    Sau 30 ngày, cần cập nhật Rules trong Firebase Console để duy trì kết nối.</p>
-  </div>`);
-  const bottomGrid = el(`<div class="grid-2b"></div>`);
-  bottomGrid.appendChild(guideCard);
-  bottomGrid.appendChild(firebaseGuideCard);
-  wrap.appendChild(bottomGrid);
 
   exportCard.querySelector('#btnResetSeed').addEventListener('click', ()=>{
     if(!confirm('Xóa TOÀN BỘ dữ liệu (mọi năm học/học kỳ, DS GV và TKB)? Mọi thay đổi chưa xuất sẽ mất.')) return;
