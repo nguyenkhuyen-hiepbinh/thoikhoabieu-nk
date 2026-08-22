@@ -566,6 +566,50 @@ function guessDateFromFilename(name){
   return new Date().toISOString().slice(0,10);
 }
 
+function excelSerialToISODate(serial){
+  // SheetJS trả về ô ngày dạng số serial Excel khi đọc không kèm option {cellDates:true}
+  // (app hiện đọc bằng XLSX.read(data,{type:'array'}) không có option này). 25569 = số ngày
+  // giữa mốc 0 của Excel (30/12/1899) và mốc Unix epoch (01/01/1970).
+  const ms = Math.round((serial - 25569) * 86400 * 1000);
+  const d = new Date(ms);
+  if(isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0,10);
+}
+
+function findNgayApDungFromRows(rows){
+  // Tìm ô nhãn kiểu "ÁP DỤNG TỪ NGÀY :" trong vài dòng đầu file Excel TKB, rồi lấy giá trị ngày
+  // ở một trong các ô liền sau trên cùng dòng đó (không giả định đúng ô kế tiếp vì có thể có
+  // các ô trống do merge). Trả về chuỗi ISO yyyy-mm-dd, hoặc null nếu không tìm thấy.
+  const maxRow = Math.min(rows.length, 10);
+  for(let r=0; r<maxRow; r++){
+    const row = rows[r] || [];
+    for(let c=0; c<row.length; c++){
+      const label = (row[c]||'').toString().toUpperCase();
+      if(label.includes('ÁP DỤNG') && label.includes('NGÀY')){
+        for(let c2=c+1; c2<Math.min(row.length, c+15); c2++){
+          const v = row[c2];
+          if(v===''||v===null||v===undefined) continue;
+          if(v instanceof Date && !isNaN(v.getTime())){
+            return v.toISOString().slice(0,10);
+          }
+          if(typeof v === 'number' && v>20000 && v<80000){
+            const iso = excelSerialToISODate(v);
+            if(iso) return iso;
+          }
+          if(typeof v === 'string'){
+            const m = v.trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+            if(m){
+              const [, dd, mm, yyyy] = m;
+              return `${yyyy}-${mm.padStart(2,'0')}-${dd.padStart(2,'0')}`;
+            }
+          }
+        }
+      }
+    }
+  }
+  return null;
+}
+
 /* ============== Indexing helpers ============== */
 function indexSchedule(schedule){
   // class -> thu -> tiet -> {mon, gv}
@@ -1853,18 +1897,26 @@ function renderUpdate(){
         const data = new Uint8Array(ev.target.result);
         const wb = XLSX.read(data, {type:'array'});
         let merged = {};
+        let detectedNgayApDung = null;
         ['k12','k10-k11'].forEach(sn=>{
           if(wb.Sheets[sn]){
             const rows = XLSX.utils.sheet_to_json(wb.Sheets[sn], {header:1, defval:''});
             const parsed = parseSheetRows(rows);
             merged = {...merged, ...parsed};
+            if(!detectedNgayApDung) detectedNgayApDung = findNgayApDungFromRows(rows);
           }
         });
         if(Object.keys(merged).length===0){
           status.innerHTML = '<span style="color:var(--conflict);">Không tìm thấy sheet "k12" hoặc "k10-k11" hợp lệ trong file.</span>';
           return;
         }
-        status.innerHTML = `<span class="tag ok">Đã đọc ${Object.keys(merged).length} lớp từ file.</span>`;
+        let ngayNote = ' (đoán theo tên file — kiểm tra lại giúp).';
+        if(detectedNgayApDung){
+          card.querySelector('#inpNgayApDung').value = detectedNgayApDung;
+          ngayNote = ' (đọc tự động từ ô "ÁP DỤNG TỪ NGÀY" trong file).';
+        }
+        status.innerHTML = `<span class="tag ok">Đã đọc ${Object.keys(merged).length} lớp từ file.</span>
+          <span style="color:var(--ink-dim);">Ngày áp dụng: ${fmtDateVN(card.querySelector('#inpNgayApDung').value)}${ngayNote}</span>`;
         showImportPreview(merged);
       }catch(err){
         status.innerHTML = `<span style="color:var(--conflict);">Lỗi đọc file: ${err.message}</span>`;
