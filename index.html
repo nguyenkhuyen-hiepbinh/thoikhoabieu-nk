@@ -1242,7 +1242,11 @@ function parseTeacherRosterFile(rows){
     const ma = (row[colMa]||'').toString().trim();
     if(!ma){
       blankStreak++;
-      if(blankStreak>=3) break; // genuine end of table
+      // Nhiều file danh sách GV được nhóm theo Tổ chuyên môn, có 1-2 dòng trống/dòng
+      // tiêu đề nhóm (ví dụ "TỔ VĂN", "TỔ TOÁN"...) xen giữa — những dòng đó không có
+      // "Mã" nên trước đây bị hiểu nhầm là hết bảng và dừng đọc giữa chừng, làm rơi mất
+      // toàn bộ GV phía sau. Chỉ dừng khi gặp một khoảng trống thực sự dài (cuối bảng).
+      if(blankStreak>=15) break; // genuine end of table
       continue;
     }
     blankStreak = 0;
