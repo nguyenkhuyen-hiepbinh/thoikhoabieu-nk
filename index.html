@@ -623,9 +623,17 @@ function stripChieuT7(schedule){
   return removed;
 }
 
-function computeConflicts(schedule){
+function computeConflicts(schedule, classes){
+  // IMPORTANT: only scan currently active classes (state.classes), not every key
+  // ever stored in `schedule`. Import is additive (a re-upload that omits a class
+  // keeps that class's old entries untouched — see btnConfirm handler), so
+  // `schedule` can still hold entries for classes that were renamed/removed and
+  // are no longer part of the real, current TKB. Without this filter, a stale
+  // leftover entry can collide with a real, current one and be reported as a
+  // false "trùng lịch" even though the actual current TKB has no such conflict.
   const slot = {}; // "thu|tiet" -> {norm: [{cls,gv,mon}]}
-  Object.entries(schedule).forEach(([cls, entries])=>{
+  (classes || Object.keys(schedule)).forEach(cls=>{
+    const entries = schedule[cls] || [];
     entries.forEach(e=>{
       const norm = normGV(e.gv);
       if(!norm) return;
@@ -1002,7 +1010,7 @@ function updateTopMeta(){
 }
 
 function updateBadges(){
-  const conflicts = computeConflicts(state.scheduleCurrent);
+  const conflicts = computeConflicts(state.scheduleCurrent, state.classes);
   const b = document.getElementById('badge-trunglich');
   if(b){ if(conflicts.length){ b.textContent = conflicts.length; b.classList.add('show'); } else { b.classList.remove('show'); } }
 }
@@ -1024,7 +1032,7 @@ function emptyRosterNotice(){
 function renderOverview(){
   const wrap = el('<div></div>');
   const totalPeriods = Object.values(state.scheduleCurrent).reduce((s,arr)=>s+arr.filter(e=>e.mon).length,0);
-  const conflicts = computeConflicts(state.scheduleCurrent);
+  const conflicts = computeConflicts(state.scheduleCurrent, state.classes);
   const diffCount = countDiffEntries(state.schedulePrev, state.scheduleCurrent, state.classes);
   const t7violations = findChieuT7Violations(state.scheduleCurrent, state.classes);
 
@@ -1731,7 +1739,7 @@ function renderThongKeMonKhoiBody(){
 function renderTrungLich(){
   const wrap = el('<div></div>');
   if(state.classes.length===0){ wrap.appendChild(emptyContextNotice()); return wrap; }
-  const conflicts = computeConflicts(state.scheduleCurrent);
+  const conflicts = computeConflicts(state.scheduleCurrent, state.classes);
   wrap.appendChild(el(`<p class="lede">Chỉ tính là trùng lịch khi trong <b>CÙNG một tiết</b> (cùng Thứ, cùng số Tiết),
     một giáo viên xuất hiện ở <b>2 lớp khác nhau trở lên</b>.</p>`));
 
@@ -1942,9 +1950,60 @@ function renderUpdate(){
     <b>${diffNow}</b> ô. Nếu vừa lưu một TKB mới, đây là số ô đã thay đổi.</p>
   </div>`));
 
+  wrap.appendChild(renderClassManagerCard());
   wrap.appendChild(renderHistoryCard());
 
   return wrap;
+}
+
+function renderClassManagerCard(){
+  // Uploading a new Excel file only ADDS or UPDATES the classes present in that
+  // file — a class that existed before but is absent from a later upload (lớp cũ
+  // đã tách/đổi tên/không còn dùng) is silently kept forever in state.classes /
+  // state.scheduleCurrent, since there is otherwise no way to remove it. Left
+  // untouched, its old GV/tiết data can still collide with a real, current class
+  // at the same Thứ/Tiết and show up as a false dòng "trùng lịch" — even though
+  // the actual, current TKB has no such conflict. This card lets the office purge
+  // those stale classes on purpose.
+  const card = el(`<div class="card">
+    <h2>Quản lý danh sách lớp</h2>
+    <p class="hint">Tải file TKB mới chỉ <b>thêm/cập nhật</b> các lớp có trong file đó — lớp cũ đã đổi tên/không còn dạy
+    (ví dụ lớp của khối đã ra trường, hoặc gõ nhầm tên lớp ở một lần tải lên trước) sẽ vẫn còn lưu trong hệ thống và có thể
+    khiến <b>Báo cáo trùng lịch</b> báo trùng giả (so trùng với dữ liệu của một lớp thực ra không còn tồn tại). Hãy rà soát
+    và xóa các lớp không còn dùng ở đây.</p>
+    <div class="table-wrap" id="classManagerWrap"></div>
+  </div>`);
+
+  function draw(){
+    if(state.classes.length===0){
+      card.querySelector('#classManagerWrap').innerHTML = '<div class="empty-state">Chưa có lớp nào.</div>';
+      return;
+    }
+    let h = `<table><thead><tr><th style="width:60px;">TT</th><th>Tên lớp</th><th>Số tiết đã khai báo</th><th style="width:100px;"></th></tr></thead><tbody>`;
+    state.classes.forEach((cls,i)=>{
+      const soTiet = (state.scheduleCurrent[cls]||[]).filter(e=>e.mon||e.gv).length;
+      h += `<tr data-i="${i}"><td class="num">${i+1}</td><td>${cls}</td><td class="center">${soTiet}</td>
+        <td><button class="ghost btnDelClass" style="padding:4px 9px;font-size:12px;" type="button">Xóa lớp</button></td></tr>`;
+    });
+    h += '</tbody></table>';
+    card.querySelector('#classManagerWrap').innerHTML = h;
+  }
+  draw();
+
+  card.querySelector('#classManagerWrap').addEventListener('click', (ev)=>{
+    const tr = ev.target.closest('tr[data-i]');
+    if(!tr || !ev.target.closest('.btnDelClass')) return;
+    const i = parseInt(tr.dataset.i,10);
+    const cls = state.classes[i];
+    if(!confirm(`Xóa lớp "${cls}" khỏi hệ thống? Toàn bộ dữ liệu TKB của lớp này (trong năm học/học kỳ hiện tại) sẽ bị gỡ bỏ.
+Chỉ nên làm việc này với lớp không còn tồn tại/đã nhập nhầm — không dùng để xóa lớp vẫn đang học bình thường.`)) return;
+    state.classes = state.classes.filter((c,idx)=> idx!==i);
+    delete state.scheduleCurrent[cls];
+    draw();
+    updateTopMeta();
+  });
+
+  return card;
 }
 
 function renderHistoryCard(){
