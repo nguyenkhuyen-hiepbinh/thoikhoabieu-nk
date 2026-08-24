@@ -624,21 +624,48 @@ function indexSchedule(schedule){
   return idx;
 }
 
+function normGvKey(ma){
+  // Dạng chuẩn hóa của mã GV: bỏ phần chú thích trong ngoặc + không phân biệt hoa/thường.
+  // CHỈ dùng làm phương án dự phòng khi không tìm được khớp đúng nguyên văn — xem gvEntries().
+  return normGV(ma).toLowerCase();
+}
+
 function buildGvIndex(schedule){
-  // normalized abbrev -> [{cls,thu,tiet,mon,gv}]
-  const idx = {};
+  // Lập 2 chỉ mục từ TKB:
+  //  - exact: nguyên văn ô GV (giữ cả phần trong ngoặc nếu có) -> entries
+  //  - norm : dạng đã chuẩn hóa (bỏ ngoặc + hạ chữ thường) -> entries
+  // Cần 2 tầng vì "Tên viết tắt" trong DS Giáo viên đôi khi PHẢI giữ nguyên phần trong ngoặc để
+  // phân biệt 2 giáo viên trùng tên gốc (ví dụ "Thủy(TD)" và một "Thủy(...)" khác nếu phát sinh)
+  // — trường hợp này so khớp CHÍNH XÁC mới đúng, tuyệt đối không được gộp. Nhưng cũng có trường
+  // hợp mã trong DS Giáo viên và ô GV trong TKB lệch nhau về hoa/thường hoặc có/không có chú
+  // thích dù cùng 1 người — trường hợp này mới cần khớp theo dạng đã chuẩn hóa để dự phòng.
+  const idx = {exact:{}, norm:{}};
   Object.entries(schedule).forEach(([cls, entries])=>{
     entries.forEach(e=>{
-      const norm = normGV(e.gv);
-      if(!norm) return;
-      (idx[norm] = idx[norm] || []).push({cls, thu:e.thu, tiet:e.tiet, mon:e.mon, gv:e.gv});
+      const raw = (e.gv||'').trim();
+      if(!raw) return;
+      const item = {cls, thu:e.thu, tiet:e.tiet, mon:e.mon, gv:e.gv};
+      (idx.exact[raw] = idx.exact[raw] || []).push(item);
+      const norm = normGvKey(raw);
+      if(norm) (idx.norm[norm] = idx.norm[norm] || []).push(item);
     });
   });
   return idx;
 }
 
+function gvEntries(gvIndex, ma){
+  const raw = (ma||'').trim();
+  if(!raw) return [];
+  // Ưu tiên khớp CHÍNH XÁC nguyên văn trước (an toàn với các mã có ngoặc mang tính phân biệt).
+  if(gvIndex.exact[raw]) return gvIndex.exact[raw];
+  // Không có khớp đúng nguyên văn — thử theo dạng đã chuẩn hóa (bỏ ngoặc, không phân biệt hoa
+  // thường), để không bỏ sót các trường hợp lệch định dạng ngoài ý muốn giữa DS Giáo viên và TKB.
+  const norm = normGvKey(raw);
+  return (norm && gvIndex.norm[norm]) || [];
+}
+
 function classesForAbbrev(gvIndex, ma){
-  const list = gvIndex[ma] || [];
+  const list = gvEntries(gvIndex, ma);
   return [...new Set(list.map(x=>x.cls))].sort();
 }
 
@@ -1598,7 +1625,7 @@ function renderGVBody(){
 
   function draw(){
     const t = state.roster[selectedIdx];
-    const entries = gvIndex[t.ma] || [];
+    const entries = gvEntries(gvIndex, t.ma);
     const byDay = {};
     entries.forEach(e=> (byDay[e.thu]=byDay[e.thu]||{})[e.tiet] = e);
     card.querySelector('#gvInfo').innerHTML = `<table class="kv-table">
@@ -1629,7 +1656,7 @@ function renderThongKeGVBody(){
   if(state.roster.length===0){ wrap.appendChild(emptyRosterNotice()); return wrap; }
   wrap.appendChild(el(`<p class="lede">Tổng số tiết dạy mỗi tuần của từng giáo viên (đếm theo tên viết tắt xuất hiện trong TKB). Bấm tiêu đề cột để sắp xếp.</p>`));
   const gvIndex = buildGvIndex(state.scheduleCurrent);
-  const rows = state.roster.map((t,i)=>({...t, total:(gvIndex[t.ma]||[]).length, idx:i}));
+  const rows = state.roster.map((t,i)=>({...t, total:gvEntries(gvIndex, t.ma).length, idx:i}));
   let sortKey = 'total', sortDir = -1;
 
   const card = el(`<div class="card">
