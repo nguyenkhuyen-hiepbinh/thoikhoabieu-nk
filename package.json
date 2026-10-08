@@ -1,0 +1,9 @@
+{
+  "name": "tkb-nguyen-khuyen",
+  "version": "1.0.0",
+  "description": "Hệ thống Thời khóa biểu — Trường THCS-THPT Nguyễn Khuyến (xem công khai, quản trị công bố TKB mới)",
+  "private": true,
+  "main": "server.js",
+  "scripts": { "start": "node server.js", "build": "python3 build/patch.py build/goc/index.html public/index.html" },
+  "engines": { "node": ">=20" }
+}
